@@ -1,32 +1,10 @@
+import 'package:ajoshi_socialmedia_demo/api_call/api_call.dart';
+import 'package:ajoshi_socialmedia_demo/screens/main_screen.dart';
 import 'package:flutter/material.dart';
 import 'dart:convert';
-import 'package:http/http.dart' as http;
 
 class PostsScreen extends StatefulWidget {
-  Map posts;
-  Color primaryColor;
-  String baseUrl = '';
-  int page;
-  int limit = 0;
-  String appId = "";
-  String category = '';
-  bool hasNextPage = true;
-  bool isFirstLoadRunning = false;
-  bool isLoadMoreRunning = false;
-
-  PostsScreen(
-      {Key? key,
-      required this.posts,
-      required this.primaryColor,
-      required this.page,
-      required this.limit,
-      required this.appId,
-      required this.category,
-      required this.hasNextPage,
-      required this.baseUrl,
-      required this.isFirstLoadRunning,
-      required this.isLoadMoreRunning})
-      : super(key: key);
+  const PostsScreen({Key? key}) : super(key: key);
 
   @override
   State<PostsScreen> createState() => _PostsScreenState();
@@ -34,65 +12,56 @@ class PostsScreen extends StatefulWidget {
 
 class _PostsScreenState extends State<PostsScreen> {
   late ScrollController scrollController;
+  bool hasNextPage = true;
+  bool isFirstLoadRunning = false;
+  bool isLoadMoreRunning = false;
+  int postLength = 0;
+  int page = 1;
+  int limit = 10;
+  Map posts = {};
 
   @override
   void initState() {
-    scrollController = ScrollController()..addListener(loadMore);
-    firstLoad();
+    scrollController = ScrollController()..addListener(loadMoreData);
+    firstTimeLoad();
     super.initState();
   }
 
-  void firstLoad() async {
+  void firstTimeLoad() async {
     setState(() {
-      widget.isFirstLoadRunning = true;
+      isFirstLoadRunning = true;
     });
-    try {
-      final res = await http.get(
-          Uri.parse(
-              "${widget.baseUrl}${widget.category}?page=${widget.page}&limit=${widget.limit}}"),
-          headers: {"app-id": widget.appId});
-      setState(() {
-        widget.posts = json.decode(res.body);
-        print("=======${widget.posts}");
-      });
-    } catch (err) {
-      print("$err");
-      print('Something went wrong');
-    }
-
+    final res = await ApiCall().postsPage(page, limit);
     setState(() {
-      widget.isFirstLoadRunning = false;
+      posts = jsonDecode(res.body);
+      postLength = posts['data'].length;
+    });
+    setState(() {
+      isFirstLoadRunning = false;
     });
   }
 
-  void loadMore() async {
-    if (widget.hasNextPage == true &&
-        widget.isFirstLoadRunning == false &&
-        widget.isLoadMoreRunning == false &&
+  void loadMoreData() async {
+    if (hasNextPage == true &&
+        isFirstLoadRunning == false &&
+        isLoadMoreRunning == false &&
         scrollController.position.extentAfter < 300) {
       setState(() {
-        widget.isLoadMoreRunning =
-            true; // Display a progress indicator at the bottom
+        isLoadMoreRunning = true; // Display a progress indicator at the bottom
       });
-      widget.page += 1; // Increase page by 1
+      page += 1; // Increase page by 1
       try {
-        final res = await http.get(
-            Uri.parse(
-                "${widget.baseUrl}${widget.category}?page=${widget.page}&limit=${widget.limit}"),
-            headers: {"app-id": widget.appId});
-
+        final res = await ApiCall().postsPage(page, limit);
         final Map fetchedPosts = json.decode(res.body);
         if (fetchedPosts.isNotEmpty) {
           setState(() {
-            widget.posts.addAll(fetchedPosts);
-            //print("=======${widget.posts}");
+            posts['data'].addAll(fetchedPosts['data']);
+            postLength = posts['data'].length;
           });
         } else {
           // This means there is no more data
           // and therefore, we will not send another GET request
-          setState(() {
-            widget.hasNextPage = false;
-          });
+          hasNextPage = false;
         }
       } catch (err) {
         print("$err");
@@ -100,9 +69,15 @@ class _PostsScreenState extends State<PostsScreen> {
       }
 
       setState(() {
-        widget.isLoadMoreRunning = false;
+        isLoadMoreRunning = false;
       });
     }
+  }
+
+  @override
+  void dispose() {
+    scrollController.removeListener(loadMoreData);
+    super.dispose();
   }
 
   @override
@@ -110,7 +85,7 @@ class _PostsScreenState extends State<PostsScreen> {
     return Scaffold(
       appBar: AppBar(
         centerTitle: true,
-        backgroundColor: widget.primaryColor,
+        backgroundColor: primaryColor,
         title: const Text(
           'Posts',
           style: TextStyle(
@@ -120,7 +95,7 @@ class _PostsScreenState extends State<PostsScreen> {
           ),
         ),
       ),
-      body: widget.isFirstLoadRunning
+      body: isFirstLoadRunning
           ? const Center(
               child: CircularProgressIndicator(),
             )
@@ -129,50 +104,73 @@ class _PostsScreenState extends State<PostsScreen> {
                 Expanded(
                   child: ListView.builder(
                     controller: scrollController,
-                    itemCount: widget.posts['data']!.length,
-                    itemBuilder: (context, index) => Card(
-                      elevation: 15,
-                      color: widget.primaryColor,
-                      margin: const EdgeInsets.symmetric(
-                          vertical: 10, horizontal: 10),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Image(
-                            image: NetworkImage(
-                                "${widget.posts['data'][index]['image']}"),
-                            fit: BoxFit.fitWidth,
-                            height: 300,
-                            width: 400,
-                          ),
-                          Padding(
+                    itemCount: postLength,
+                    itemBuilder: (context, index) => Padding(
+                      padding: const EdgeInsets.only(
+                          left: 8, right: 8, top: 2, bottom: 2),
+                      child: Container(
+                        width: 300,
+                        height: 200,
+                        decoration: BoxDecoration(
+                            borderRadius:
+                                const BorderRadius.all(Radius.circular(20)),
+                            image: DecorationImage(
+                              image: NetworkImage(
+                                  "${posts['data'][index]['image']}"),
+                              fit: BoxFit.cover,
+                            )),
+                        child: Container(
+                          width: double.infinity,
+                          height: 100,
+                          decoration: const BoxDecoration(
+                              color: Colors.white60,
+                              gradient: LinearGradient(
+                                colors: [Colors.white60, Colors.white10],
+                                begin: Alignment.bottomCenter,
+                                end: Alignment.topCenter,
+                              ),
+                              backgroundBlendMode: BlendMode.lighten),
+                          child: Padding(
                             padding: const EdgeInsets.all(15),
                             child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisAlignment: MainAxisAlignment.end,
                               children: [
-                                Text(
-                                    "${widget.posts['data'][index]['owner']['firstName']}"),
-                                Text("${widget.posts['data'][index]['likes']}"),
+                                nameStyle(
+                                    title:
+                                        "${posts['data'][index]['owner']['firstName']} ${posts['data'][index]['owner']['lastName']}"),
+                                Row(
+                                  children: [
+                                    Image.asset(
+                                      "assets/like2.png",
+                                      height: 15,
+                                      width: 15,
+                                    ),
+                                    subtitleStyle(
+                                        title:
+                                            " ${posts['data'][index]['likes']}"),
+                                  ],
+                                ),
                               ],
                             ),
                           ),
-                        ],
+                        ),
                       ),
                     ),
                   ),
                 ),
 
                 // when the loadMore function is running
-                if (widget.isLoadMoreRunning == true)
+                if (isLoadMoreRunning == true)
                   const Padding(
                     padding: EdgeInsets.only(top: 10, bottom: 40),
-                    // ignore: unnecessary_const
-                    child: const Center(
+                    child: Center(
                       child: CircularProgressIndicator(),
                     ),
                   ),
 
                 // When nothing else to load
-                if (widget.hasNextPage == false)
+                if (hasNextPage == false)
                   Container(
                     padding: const EdgeInsets.only(top: 30, bottom: 40),
                     color: Colors.amber,
@@ -184,4 +182,52 @@ class _PostsScreenState extends State<PostsScreen> {
             ),
     );
   }
+}
+
+Widget nameStyle({String title = ""}) {
+  return Stack(
+    children: <Widget>[
+      Text(
+        title,
+        textAlign: TextAlign.center,
+        style: const TextStyle(
+            color: Colors.white, fontWeight: FontWeight.bold, fontSize: 22),
+      ),
+      Text(
+        title,
+        textAlign: TextAlign.center,
+        style: TextStyle(
+            foreground: Paint()
+              ..color = Colors.black
+              ..style = PaintingStyle.stroke
+              ..strokeWidth = 0.5,
+            fontWeight: FontWeight.bold,
+            fontSize: 22),
+      ),
+    ],
+  );
+}
+
+Widget subtitleStyle({String title = ""}) {
+  return Stack(
+    children: <Widget>[
+      Text(
+        title,
+        textAlign: TextAlign.center,
+        style: const TextStyle(
+            color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+      ),
+      Text(
+        title,
+        textAlign: TextAlign.center,
+        style: TextStyle(
+            foreground: Paint()
+              ..color = Colors.black
+              ..style = PaintingStyle.stroke
+              ..strokeWidth = 0.5,
+            fontSize: 18,
+            fontWeight: FontWeight.bold),
+      ),
+    ],
+  );
 }

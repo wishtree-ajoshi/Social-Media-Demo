@@ -1,62 +1,59 @@
-import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 String baseUrl = 'https://dummyapi.io/data/v1/';
-int page = 1;
-int limit = 10;
 String appId = "62b2b78d1af170c63fe12335";
-String category = 'post';
-bool hasNextPage = true;
-bool isFirstLoadRunning = false;
-bool isLoadMoreRunning = false;
-Map posts = {};
 
 class ApiCall {
-  firstLoad() async {
-    isFirstLoadRunning = true;
+  Future postsPage(int page, int limit) async {
     try {
       final res = await http.get(
-          Uri.parse("$baseUrl$category?page=$page&limit=$limit}"),
+          Uri.parse("${baseUrl}post?page=$page&limit=$limit}"),
           headers: {"app-id": appId});
-
-      posts = json.decode(res.body);
-      print("=======$posts");
-      return posts;
+      return res;
     } catch (err) {
       print("$err");
       print('Something went wrong');
     }
-    isFirstLoadRunning = false;
   }
 
-  loadMore(scrollController) async {
-    if (hasNextPage == true &&
-        isFirstLoadRunning == false &&
-        isLoadMoreRunning == false &&
-        scrollController.position.extentAfter < 300) {
-      isLoadMoreRunning = true; // Display a progress indicator at the bottom
-      page += 1; // Increase page by 1
-      try {
-        final res = await http.get(
-            Uri.parse("$baseUrl$category?page=$page&limit=$limit"),
-            headers: {"app-id": appId});
+  Future usersList(int page, int limit) async {
+    try {
+      final res = await http.get(
+          Uri.parse("${baseUrl}user?page=$page&limit=$limit}"),
+          headers: {"app-id": appId});
+      return res;
+    } catch (err) {
+      print("$err");
+      print('Something went wrong');
+    }
+  }
 
-        final Map fetchedPosts = json.decode(res.body);
-        if (fetchedPosts.isNotEmpty) {
-          posts.addAll(fetchedPosts);
-          return posts;
-        } else {
-          // This means there is no more data
-          // and therefore, we will not send another GET request
-
-          hasNextPage = false;
-          return posts;
-        }
-      } catch (err) {
-        print("$err");
-        print('Something went wrong!');
+  Future userProfile(int page, int limit, String userId) async {
+    try {
+      if (userId == '') {
+        userId = '60d0fe4f5311236168a109d0';
       }
-      isLoadMoreRunning = false;
+      final res = await http
+          .get(Uri.parse("${baseUrl}user/$userId"), headers: {"app-id": appId});
+      return res;
+    } catch (err) {
+      print("$err");
+      print('Something went wrong');
+    }
+  }
+
+  Future userPosts(int page, int limit, String userId) async {
+    try {
+      if (userId == '') {
+        userId = '60d0fe4f5311236168a109d0';
+      }
+      final res = await http.get(
+          Uri.parse("${baseUrl}user/$userId/post?page=$page&limit=$limit"),
+          headers: {"app-id": appId});
+      return res;
+    } catch (err) {
+      print("$err");
+      print('Something went wrong');
     }
   }
 }

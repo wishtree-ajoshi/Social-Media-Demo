@@ -1,34 +1,17 @@
+import 'package:ajoshi_socialmedia_demo/api_call/api_call.dart';
+import 'package:ajoshi_socialmedia_demo/screens/main_screen.dart';
 import 'package:flutter/material.dart';
 import 'dart:convert';
-import 'package:http/http.dart' as http;
 
 class UserProfile extends StatefulWidget {
-  Map posts;
-  Color primaryColor;
-  String baseUrl = '';
-  int page;
-  int limit = 0;
-  String appId = "";
+  Map users = {};
   String userId = "";
-  String category = '';
-  bool hasNextPage = true;
-  bool isFirstLoadRunning = false;
-  bool isLoadMoreRunning = false;
 
-  UserProfile(
-      {Key? key,
-      required this.posts,
-      required this.primaryColor,
-      required this.page,
-      required this.limit,
-      required this.appId,
-      required this.category,
-      required this.hasNextPage,
-      required this.baseUrl,
-      required this.userId,
-      required this.isFirstLoadRunning,
-      required this.isLoadMoreRunning})
-      : super(key: key);
+  UserProfile({
+    Key? key,
+    required this.users,
+    required this.userId,
+  }) : super(key: key);
 
   @override
   State<UserProfile> createState() => _UserProfileState();
@@ -36,28 +19,36 @@ class UserProfile extends StatefulWidget {
 
 class _UserProfileState extends State<UserProfile> {
   late ScrollController scrollController;
+  Map userProfile = {};
+  Map userPosts = {};
+  bool hasNextPage = true;
+  bool isFirstLoadRunning = false;
+  bool isLoadMoreRunning = false;
+  int postsLength = 0;
+  int page = 1;
+  int limit = 10;
 
   @override
   void initState() {
-    scrollController = ScrollController()..addListener(loadMore);
-    firstLoad();
+    scrollController = ScrollController()..addListener(loadMoreData);
+    firstLoadData();
     super.initState();
   }
 
-  void firstLoad() async {
+  void firstLoadData() async {
     setState(() {
-      widget.isFirstLoadRunning = true;
+      isFirstLoadRunning = true;
     });
     try {
       if (widget.userId == '') {
         widget.userId = '60d0fe4f5311236168a109d0';
       }
-      final res = await http.get(
-          Uri.parse("${widget.baseUrl}${widget.category}/${widget.userId}"),
-          headers: {"app-id": widget.appId});
+      final res1 = await ApiCall().userProfile(page, limit, widget.userId);
+      final res2 = await ApiCall().userPosts(page, limit, widget.userId);
       setState(() {
-        widget.posts = json.decode(res.body);
-        print("=======${widget.posts}");
+        userProfile = json.decode(res1.body);
+        userPosts = json.decode(res2.body);
+        postsLength = userPosts['data'].length;
       });
     } catch (err) {
       print("$err");
@@ -65,36 +56,32 @@ class _UserProfileState extends State<UserProfile> {
     }
 
     setState(() {
-      widget.isFirstLoadRunning = false;
+      isFirstLoadRunning = false;
     });
   }
 
-  void loadMore() async {
-    if (widget.hasNextPage == true &&
-        widget.isFirstLoadRunning == false &&
-        widget.isLoadMoreRunning == false &&
+  void loadMoreData() async {
+    if (hasNextPage == true &&
+        isFirstLoadRunning == false &&
+        isLoadMoreRunning == false &&
         scrollController.position.extentAfter < 300) {
       setState(() {
-        widget.isLoadMoreRunning =
-            true; // Display a progress indicator at the bottom
+        isLoadMoreRunning = true; // Display a progress indicator at the bottom
       });
-      widget.page += 1; // Increase page by 1
+      page += 1; // Increase page by 1
       try {
-        final res = await http.get(
-            Uri.parse("${widget.baseUrl}${widget.category}/${widget.userId}"),
-            headers: {"app-id": widget.appId});
-
+        final res = await ApiCall().userPosts(page, limit, widget.userId);
         final Map fetchedPosts = json.decode(res.body);
         if (fetchedPosts.isNotEmpty) {
           setState(() {
-            widget.posts.addAll(fetchedPosts);
-            //print("=======${widget.posts}");
+            userPosts['data'].addAll(fetchedPosts['data']);
+            postsLength = userPosts['data'].length;
           });
         } else {
           // This means there is no more data
           // and therefore, we will not send another GET request
           setState(() {
-            widget.hasNextPage = false;
+            hasNextPage = false;
           });
         }
       } catch (err) {
@@ -103,9 +90,15 @@ class _UserProfileState extends State<UserProfile> {
       }
 
       setState(() {
-        widget.isLoadMoreRunning = false;
+        isLoadMoreRunning = false;
       });
     }
+  }
+
+  @override
+  void dispose() {
+    scrollController.removeListener(loadMoreData);
+    super.dispose();
   }
 
   @override
@@ -113,7 +106,7 @@ class _UserProfileState extends State<UserProfile> {
     return Scaffold(
       appBar: AppBar(
         centerTitle: true,
-        backgroundColor: widget.primaryColor,
+        backgroundColor: primaryColor,
         title: const Text(
           'User Profile',
           style: TextStyle(
@@ -123,64 +116,80 @@ class _UserProfileState extends State<UserProfile> {
           ),
         ),
       ),
-      body: widget.isFirstLoadRunning
+      body: isFirstLoadRunning
           ? const Center(
               child: CircularProgressIndicator(),
             )
           : Column(
               children: [
                 Expanded(
-                  child: ListView.builder(
+                  child: SingleChildScrollView(
                     controller: scrollController,
-                    itemCount: 1,
-                    itemBuilder: (context, index) => Card(
-                      elevation: 15,
-                      color: widget.primaryColor,
-                      margin: const EdgeInsets.symmetric(
-                          vertical: 10, horizontal: 10),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Image(
-                            image: NetworkImage("${widget.posts['picture']}"),
-                            fit: BoxFit.fitWidth,
-                            height: 300,
-                            width: 400,
+                    child: Column(
+                      children: [
+                        Image(
+                          image: NetworkImage("${userProfile['picture']}"),
+                          fit: BoxFit.fitWidth,
+                          height: 70,
+                          width: 70,
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.all(15),
+                          child: Column(
+                            children: [
+                              Text(
+                                  "${userProfile['firstName']} ${userProfile['lastName']}"),
+                            ],
                           ),
-                          Padding(
-                            padding: const EdgeInsets.all(15),
-                            child: Column(
-                              children: [
-                                Text(
-                                    "${widget.posts['firstName']} ${widget.posts['lastName']}"),
-                              ],
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.all(5),
+                          child: GridView.builder(
+                            scrollDirection: Axis.vertical,
+                            physics: const NeverScrollableScrollPhysics(),
+                            itemCount: postsLength,
+                            itemBuilder: (context, index) => Card(
+                              color: primaryColor,
+                              margin: const EdgeInsets.symmetric(
+                                  vertical: 2, horizontal: 2),
+                              child: Image(
+                                image: NetworkImage(
+                                    "${userPosts['data'][index]['image']}"),
+                                fit: BoxFit.cover,
+                                height: 120,
+                                width: 120,
+                              ),
+                            ),
+                            shrinkWrap: true,
+                            gridDelegate:
+                                const SliverGridDelegateWithFixedCrossAxisCount(
+                                    crossAxisCount: 3),
+                          ),
+                        ),
+                        if (isLoadMoreRunning == true)
+                          const Padding(
+                            padding: EdgeInsets.only(top: 10, bottom: 40),
+                            child: Center(
+                              child: CircularProgressIndicator(),
                             ),
                           ),
-                        ],
-                      ),
+
+                        // When nothing else to load
+                        if (hasNextPage == false)
+                          Container(
+                            padding: const EdgeInsets.only(top: 30, bottom: 40),
+                            color: Colors.amber,
+                            child: const Center(
+                              child:
+                                  Text('You have fetched all of the content'),
+                            ),
+                          ),
+                      ],
                     ),
+
+                    //when the loadMore function is running
                   ),
                 ),
-
-                // when the loadMore function is running
-                if (widget.isLoadMoreRunning == true)
-                  const Padding(
-                    padding: EdgeInsets.only(top: 10, bottom: 40),
-                    // ignore: unnecessary_const
-                    child: const Center(
-                      child: CircularProgressIndicator(),
-                    ),
-                  ),
-
-                // When nothing else to load
-                if (widget.hasNextPage == false)
-                  Container(
-                    padding: const EdgeInsets.only(top: 30, bottom: 40),
-                    color: Colors.amber,
-                    child: const Center(
-                      child: Text('You have fetched all of the content'),
-                    ),
-                  ),
               ],
             ),
     );

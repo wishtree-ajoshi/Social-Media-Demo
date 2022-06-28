@@ -1,33 +1,11 @@
+import 'package:ajoshi_socialmedia_demo/api_call/api_call.dart';
+import 'package:ajoshi_socialmedia_demo/screens/main_screen.dart';
 import 'package:ajoshi_socialmedia_demo/screens/user_profile.dart';
 import 'package:flutter/material.dart';
 import 'dart:convert';
-import 'package:http/http.dart' as http;
 
 class UsersScreen extends StatefulWidget {
-  Map posts;
-  Color primaryColor;
-  String baseUrl = '';
-  int page;
-  int limit = 0;
-  String appId = "";
-  String category = '';
-  bool hasNextPage = true;
-  bool isFirstLoadRunning = false;
-  bool isLoadMoreRunning = false;
-
-  UsersScreen(
-      {Key? key,
-      required this.posts,
-      required this.primaryColor,
-      required this.page,
-      required this.limit,
-      required this.appId,
-      required this.category,
-      required this.hasNextPage,
-      required this.baseUrl,
-      required this.isFirstLoadRunning,
-      required this.isLoadMoreRunning})
-      : super(key: key);
+  const UsersScreen({Key? key}) : super(key: key);
 
   @override
   State<UsersScreen> createState() => _UsersScreenState();
@@ -35,64 +13,59 @@ class UsersScreen extends StatefulWidget {
 
 class _UsersScreenState extends State<UsersScreen> {
   late ScrollController scrollController;
+  bool hasNextPage = true;
+  bool isFirstLoadRunning = false;
+  bool isLoadMoreRunning = false;
+  int userLength = 0;
+  int page = 1;
+  int limit = 10;
+  Map users = {};
 
   @override
   void initState() {
     scrollController = ScrollController()..addListener(loadMore);
-    firstLoad();
+    firstTimeLoad();
     super.initState();
   }
 
-  void firstLoad() async {
+  void firstTimeLoad() async {
     setState(() {
-      widget.isFirstLoadRunning = true;
+      isFirstLoadRunning = true;
     });
-    try {
-      final res = await http.get(
-          Uri.parse(
-              "${widget.baseUrl}${widget.category}?page=${widget.page}&limit=${widget.limit}}"),
-          headers: {"app-id": widget.appId});
-      setState(() {
-        widget.posts = json.decode(res.body);
-        print("=======${widget.posts}");
-      });
-    } catch (err) {
-      print("$err");
-      print('Something went wrong');
-    }
-
+    final res = await ApiCall().usersList(page, limit);
     setState(() {
-      widget.isFirstLoadRunning = false;
+      users = json.decode(res.body);
+      userLength = users['data'].length;
+      print("=======${users}");
+    });
+    setState(() {
+      isFirstLoadRunning = false;
     });
   }
 
   void loadMore() async {
-    if (widget.hasNextPage == true &&
-        widget.isFirstLoadRunning == false &&
-        widget.isLoadMoreRunning == false &&
+    if (hasNextPage == true &&
+        isFirstLoadRunning == false &&
+        isLoadMoreRunning == false &&
         scrollController.position.extentAfter < 300) {
       setState(() {
-        widget.isLoadMoreRunning =
-            true; // Display a progress indicator at the bottom
+        isLoadMoreRunning = true; // Display a progress indicator at the bottom
       });
-      widget.page += 1; // Increase page by 1
+      page += 1; // Increase page by 1
       try {
-        final res = await http.get(
-            Uri.parse(
-                "${widget.baseUrl}${widget.category}?page=${widget.page}&limit=${widget.limit}"),
-            headers: {"app-id": widget.appId});
-
+        final res = await ApiCall().usersList(page, limit);
         final Map fetchedPosts = json.decode(res.body);
         if (fetchedPosts.isNotEmpty) {
           setState(() {
-            widget.posts.addAll(fetchedPosts);
-            print("=======${widget.posts}");
+            users['data'].addAll(fetchedPosts['data']);
+            userLength = users['data'].length;
+            print("=======${users['data'].length}");
           });
         } else {
           // This means there is no more data
           // and therefore, we will not send another GET request
           setState(() {
-            widget.hasNextPage = false;
+            hasNextPage = false;
           });
         }
       } catch (err) {
@@ -101,9 +74,15 @@ class _UsersScreenState extends State<UsersScreen> {
       }
 
       setState(() {
-        widget.isLoadMoreRunning = false;
+        isLoadMoreRunning = false;
       });
     }
+  }
+
+  @override
+  void dispose() {
+    scrollController.removeListener(loadMore);
+    super.dispose();
   }
 
   @override
@@ -111,7 +90,7 @@ class _UsersScreenState extends State<UsersScreen> {
     return Scaffold(
       appBar: AppBar(
         centerTitle: true,
-        backgroundColor: widget.primaryColor,
+        backgroundColor: primaryColor,
         title: const Text(
           'Users',
           style: TextStyle(
@@ -121,7 +100,7 @@ class _UsersScreenState extends State<UsersScreen> {
           ),
         ),
       ),
-      body: widget.isFirstLoadRunning
+      body: isFirstLoadRunning
           ? const Center(
               child: CircularProgressIndicator(),
             )
@@ -131,27 +110,18 @@ class _UsersScreenState extends State<UsersScreen> {
                   child: GridView.builder(
                     scrollDirection: Axis.vertical,
                     controller: scrollController,
-                    itemCount: widget.posts['data'].length,
+                    itemCount: userLength,
                     itemBuilder: (context, index) => GestureDetector(
                       onTap: () => Navigator.push(
                           context,
                           MaterialPageRoute(
                               builder: (context) => UserProfile(
-                                  posts: widget.posts,
-                                  primaryColor: widget.primaryColor,
-                                  page: widget.page,
-                                  limit: widget.limit,
-                                  appId: widget.appId,
-                                  userId: widget.posts['data'][index]['id'],
-                                  category: 'user',
-                                  hasNextPage: widget.hasNextPage,
-                                  baseUrl: widget.baseUrl,
-                                  isFirstLoadRunning: widget.isFirstLoadRunning,
-                                  isLoadMoreRunning:
-                                      widget.isLoadMoreRunning))),
+                                    users: users,
+                                    userId: users['data'][index]['id'],
+                                  ))),
                       child: Card(
                         elevation: 15,
-                        color: widget.primaryColor,
+                        color: primaryColor,
                         margin: const EdgeInsets.symmetric(
                             vertical: 10, horizontal: 10),
                         child: Column(
@@ -161,7 +131,7 @@ class _UsersScreenState extends State<UsersScreen> {
                               borderRadius: BorderRadius.circular(50),
                               child: Image(
                                 image: NetworkImage(
-                                    "${widget.posts['data'][index]['picture']}"),
+                                    "${users['data'][index]['picture']}"),
                                 fit: BoxFit.fill,
                                 height: 100,
                                 width: 100,
@@ -172,7 +142,7 @@ class _UsersScreenState extends State<UsersScreen> {
                               child: Column(
                                 children: [
                                   Text(
-                                      "${widget.posts['data'][index]['firstName']} ${widget.posts['data'][index]['lastName']}"),
+                                      "${users['data'][index]['firstName']} ${users['data'][index]['lastName']}"),
                                 ],
                               ),
                             ),
@@ -187,17 +157,16 @@ class _UsersScreenState extends State<UsersScreen> {
                 ),
 
                 // when the loadMore function is running
-                if (widget.isLoadMoreRunning == true)
+                if (isLoadMoreRunning == true)
                   const Padding(
                     padding: EdgeInsets.only(top: 10, bottom: 40),
-                    // ignore: unnecessary_const
-                    child: const Center(
+                    child: Center(
                       child: CircularProgressIndicator(),
                     ),
                   ),
 
                 // When nothing else to load
-                if (widget.hasNextPage == false)
+                if (hasNextPage == false)
                   Container(
                     padding: const EdgeInsets.only(top: 30, bottom: 40),
                     color: Colors.amber,
