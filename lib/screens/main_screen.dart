@@ -14,7 +14,7 @@ Color primaryColor = Colors.grey.shade200;
 
 class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
   TabController? tabController;
-  Map users = {};
+  Map userProfile = {};
   @override
   void initState() {
     tabController = TabController(length: 3, vsync: this, initialIndex: 0);
@@ -26,7 +26,7 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
     return Scaffold(
         bottomNavigationBar: Container(
           padding: const EdgeInsets.all(2),
-          height: 60,
+          height: 50,
           color: primaryColor,
           child: TabBar(
             indicator: const BoxDecoration(
@@ -46,7 +46,7 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
             const UsersScreen(),
             UserProfile(
               userId: '60d0fe4f5311236168a109d0',
-              users: users,
+              userProfile: userProfile,
             ),
           ],
         ));
@@ -65,8 +65,8 @@ tabColumn({
         padding: const EdgeInsets.all(5),
         child: Image.asset(
           imagePath,
-          width: 30,
-          height: 30,
+          width: 25,
+          height: 25,
         ),
       ),
     ],

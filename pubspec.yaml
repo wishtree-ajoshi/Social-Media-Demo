@@ -36,6 +36,10 @@ dependencies:
   cupertino_icons: ^1.0.2
   infinite_scroll_pagination: ^3.2.0
   http:
+  flutter_easyloading: ^3.0.5  
+  timezone:
+  flutter_native_timezone: ^2.0.0
+  rxdart: ^0.27.4
 
 dev_dependencies:
   flutter_test:
